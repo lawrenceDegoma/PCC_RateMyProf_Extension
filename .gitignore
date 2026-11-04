@@ -1,0 +1,8 @@
+# Chrome extension signing key — do not commit
+*.pem
+
+# Packaged extension output
+*.crx
+
+# Node
+node_modules/

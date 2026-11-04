@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <circle cx="64" cy="64" r="63" fill="#9c1521"/>
+  <circle cx="64" cy="64" r="56" fill="none" stroke="#f2b632" stroke-width="3"/>
+  <path d="M64 21l10.6 21.5 23.7 3.4-17.2 16.7 4.1 23.6L64 75.1 42.8 86.2l4.1-23.6L29.7 45.9l23.7-3.4z" fill="#f2b632" transform="translate(0 -3)"/>
+  <text x="64" y="110" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="25" font-weight="800" letter-spacing="1" fill="#fff">PCC</text>
+</svg>
