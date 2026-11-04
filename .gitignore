@@ -6,3 +6,6 @@
 
 # Node
 node_modules/
+
+# PCC's trademarked logo — reference only, never ship it
+icons/pcclogo.png

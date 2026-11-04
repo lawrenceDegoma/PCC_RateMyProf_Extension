@@ -35,7 +35,7 @@ p + .rmp-badge {
 
 .rmp-not-found {
   background: #f0f0f0;
-  color: #aaa;
+  color: #777;
 }
 
 /* Rating colors */
@@ -43,6 +43,90 @@ p + .rmp-badge {
 .rmp-ok    { background: #fff4cc; color: #7a5a00; }
 .rmp-poor  { background: #ffe0c2; color: #9a4500; }
 .rmp-bad   { background: #ffd6d6; color: #9a0000; }
+
+/* Solid versions stand out from the site's pale status pills */
+.rmp-tile.rmp-good, .rmp-badge.rmp-good, .rmp-chip-score.rmp-good { background: #1a7a45; color: #fff; }
+.rmp-tile.rmp-ok,   .rmp-badge.rmp-ok,   .rmp-chip-score.rmp-ok   { background: #9a6f00; color: #fff; }
+.rmp-tile.rmp-poor, .rmp-badge.rmp-poor, .rmp-chip-score.rmp-poor { background: #c2570c; color: #fff; }
+.rmp-tile.rmp-bad,  .rmp-badge.rmp-bad,  .rmp-chip-score.rmp-bad  { background: #b3261e; color: #fff; }
+
+/* ── Score Tile ────────────────────────────────────────────────────────────── */
+
+.rmp-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  width: 72px;
+  margin-top: 8px;
+  padding: 6px 2px 5px;
+  border-radius: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1;
+  text-align: center;
+  cursor: default;
+  user-select: none;
+}
+
+.rmp-tile-score {
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.rmp-tile-label {
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.rmp-tile-hint {
+  margin-top: 4px;
+  font-size: 9px;
+  line-height: 1.1;
+  opacity: 0.85;
+}
+
+/* ── Course Summary ────────────────────────────────────────────────────────── */
+
+.rmp-summary {
+  padding: 10px 16px 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.rmp-summary-title {
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #777;
+}
+
+.rmp-summary-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rmp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  color: #222;
+  cursor: default;
+}
+
+.rmp-chip-score {
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-weight: 800;
+}
 
 /* ── Hover Card ────────────────────────────────────────────────────────────── */
 

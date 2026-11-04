@@ -8,10 +8,11 @@ A Chrome extension that injects **RateMyProfessors** ratings and reviews directl
 
 ## Features
 
-- **Inline rating badge** injected next to each professor's name
+- **Score tile** on every class section, so ratings are easy to scan
+- **Course summary** listing a course's instructors, best rated first
 - **Hover card** showing quality score, difficulty, "would retake" %, and up to 10 recent reviews
 - Color-coded ratings (green → yellow → orange → red)
-- **Co-instructors covered** — badges also appear in the Instructor Information drawer
+- **Co-instructors covered** — rating badges appear in the Instructor Information drawer
 - **Automatic on page load** — no button clicks needed
 - In-memory caching per session to avoid redundant API calls
 - Handles the schedule's **infinite scroll and filters** via MutationObserver
@@ -33,8 +34,8 @@ A Chrome extension that injects **RateMyProfessors** ratings and reviews directl
 ```
 ├── manifest.json       # Extension manifest (MV3)
 ├── background.js       # Service worker: makes RMP GraphQL requests, matches names
-├── content.js          # Injected into the schedule: finds names, injects badges
-├── styles.css          # Badge + hover card styles
+├── content.js          # Injected into the schedule: finds names, adds ratings
+├── styles.css          # Tile, summary, badge + hover card styles
 ├── icons/
 │   ├── logo.svg        # Icon source
 │   ├── icon16.png
@@ -54,7 +55,9 @@ A Chrome extension that injects **RateMyProfessors** ratings and reviews directl
 4. For each professor found, a message is sent to the **background service worker**
 5. The service worker queries the **RateMyProfessors GraphQL API** (`/graphql`) with the professor's name and PCC's school ID (`2649`), falling back to a search across all schools
 6. Results are cached in memory and returned to the content script
-7. The content script renders a **color-coded badge** and shows a **hover card** with stats and recent reviews
+7. The content script adds a **color-coded tile** to the section and ranks the course's instructors in a **summary** above its sections. Tiles, summary chips and drawer badges all open a **hover card** with stats and recent reviews
+
+The summary covers the sections loaded so far, and updates as you scroll or filter.
 
 ### Name matching
 

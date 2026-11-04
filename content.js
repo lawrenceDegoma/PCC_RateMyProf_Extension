@@ -1,10 +1,13 @@
 // content.js — Injected into PCC's class schedule (findclasses.pasadena.edu)
-// Finds instructor names in the class results and injects RMP rating badges.
+// Adds an RMP score tile to each class section, a ranked instructor summary to
+// each course, and rating badges to the instructor drawer.
 
 const PROCESSED_ATTR = "data-rmp-processed";
 const INSTRUCTOR_LABEL = "Instructor:";
 // Sections with no assigned instructor are listed under this placeholder.
 const PLACEHOLDER_NAME = "staff";
+// Everything this script adds, so the observer can ignore its own changes.
+const OWN_ELEMENTS = ".rmp-badge, .rmp-tile, .rmp-summary, .rmp-card";
 
 // Track the observer so we can disconnect it if the extension context is invalidated.
 let _observer = null;
@@ -25,14 +28,23 @@ function observeTableChanges() {
       _observer.disconnect();
       return;
     }
-    // The badge a card was opened from can be unmounted by a filter change, in
+    // The element a card was opened from can be unmounted by a filter change, in
     // which case it never fires mouseleave.
-    if (_activeBadge && !_activeBadge.isConnected) hideCard();
+    if (_activeAnchor && !_activeAnchor.isConnected) hideCard();
 
     for (const mutation of mutations) {
+      const target = mutation.target.nodeType === Node.ELEMENT_NODE
+        ? mutation.target
+        : mutation.target.parentElement;
+      if (target?.closest(OWN_ELEMENTS)) continue;
+
+      // Sections removed by a filter can drop instructors from the summary.
+      if (mutation.removedNodes.length && target?.querySelector(":scope > .rmp-summary")) {
+        markSummaryDirty(target);
+      }
       for (const node of mutation.addedNodes) {
         if (node.nodeType !== Node.ELEMENT_NODE) continue;
-        if (node.closest(".rmp-badge, .rmp-card")) continue;
+        if (node.closest(OWN_ELEMENTS)) continue;
         scanForProfessors(node);
       }
     }
@@ -55,8 +67,37 @@ function scanForProfessors(root) {
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (node.nodeValue.trim() !== INSTRUCTOR_LABEL) continue;
     const nameEl = node.parentElement.nextElementSibling;
-    if (nameEl) processNameElement(nameEl);
+    if (nameEl) processSection(nameEl);
   }
+}
+
+function readName(el) {
+  return el.textContent.trim().replace(/\s+/g, " ");
+}
+
+function isRealName(name) {
+  return !!name && name.toLowerCase() !== PLACEHOLDER_NAME;
+}
+
+function processSection(nameEl) {
+  const grid = nameEl.closest(".grid");
+  const column = grid?.firstElementChild;
+
+  // The tile needs the row's status column. If the layout ever changes, still
+  // show the rating beside the name rather than nothing.
+  if (!column || column.contains(nameEl)) {
+    processNameElement(nameEl);
+    return;
+  }
+
+  const name = readName(nameEl);
+  const existing = column.querySelector(":scope > .rmp-tile");
+  if (existing?.getAttribute("data-rmp-name") === name) return;
+  existing?.remove();
+
+  const courseList = grid.parentElement?.parentElement;
+  if (courseList) markSummaryDirty(courseList);
+  if (isRealName(name)) attachTile(column, name);
 }
 
 // The instructor drawer is the only place co-instructors are named; the section
@@ -69,7 +110,7 @@ function scanInstructorDrawer() {
 }
 
 function processNameElement(el) {
-  const name = el.textContent.trim().replace(/\s+/g, " ");
+  const name = readName(el);
   const existing = el.nextElementSibling?.classList.contains("rmp-badge")
     ? el.nextElementSibling
     : null;
@@ -82,52 +123,183 @@ function processNameElement(el) {
   }
 
   el.setAttribute(PROCESSED_ATTR, "true");
-  if (!name || name.toLowerCase() === PLACEHOLDER_NAME) return;
-  attachBadge(el, name);
+  if (isRealName(name)) attachBadge(el, name);
 }
 
-// ── Badge Injection ──────────────────────────────────────────────────────────
+// ── Ratings ──────────────────────────────────────────────────────────────────
+
+// One lookup per instructor, shared by their tiles, chips and drawer badges.
+const _ratings = new Map();
+
+function getRating(name) {
+  if (!_ratings.has(name)) _ratings.set(name, requestRating(name));
+  return _ratings.get(name);
+}
+
+function requestRating(name) {
+  return new Promise((resolve, reject) => {
+    if (!_contextValid) {
+      reject(new Error("Extension context invalidated"));
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage({ type: "GET_PROFESSOR_RATING", name }, (response) => {
+        if (chrome.runtime.lastError) {
+          const msg = chrome.runtime.lastError.message || "";
+          if (msg.includes("context invalidated")) invalidateContext();
+          _ratings.delete(name);
+          reject(new Error(msg));
+          return;
+        }
+        const data = response?.data ?? null;
+        // Null can mean the lookup failed, so let later requests try again. The
+        // background script answers repeats from its own cache.
+        if (!data) _ratings.delete(name);
+        resolve(data);
+      });
+    } catch (err) {
+      // Extension was reloaded — context is gone
+      invalidateContext();
+      _ratings.delete(name);
+      reject(err);
+    }
+  });
+}
+
+function invalidateContext() {
+  _contextValid = false;
+  if (_observer) _observer.disconnect();
+}
+
+function hasRatings(data) {
+  return !!data && data.numRatings > 0;
+}
+
+// ── Score Tile ───────────────────────────────────────────────────────────────
+
+function attachTile(column, name) {
+  const tile = document.createElement("div");
+  tile.className = "rmp-tile rmp-loading";
+  tile.setAttribute("data-rmp-name", name);
+  tile.innerHTML = `<span class="rmp-tile-score">…</span><span class="rmp-tile-label">RMP</span>`;
+  column.appendChild(tile);
+
+  getRating(name).then((data) => renderTile(tile, data), () => tile.remove());
+}
+
+function renderTile(tile, data) {
+  const score = tile.querySelector(".rmp-tile-score");
+  const label = tile.querySelector(".rmp-tile-label");
+
+  if (!hasRatings(data)) {
+    tile.className = "rmp-tile rmp-not-found";
+    score.textContent = "—";
+    label.textContent = "No RMP";
+    tile.title = "No RateMyProfessors data found";
+    return;
+  }
+
+  const rating = data.avgRating ?? 0;
+  tile.className = `rmp-tile ${ratingClass(rating)}`;
+  score.textContent = rating.toFixed(1);
+  label.textContent = "RMP ★";
+  tile.insertAdjacentHTML("beforeend", `<span class="rmp-tile-hint">Hover for reviews</span>`);
+  attachHoverCard(tile, data);
+}
+
+// ── Course Summary ───────────────────────────────────────────────────────────
+
+const _dirtyLists = new Set();
+let _summaryTimer = null;
+// Newest refresh per course, so a slow earlier one can't overwrite it.
+const _summaryTokens = new WeakMap();
+
+function markSummaryDirty(list) {
+  _dirtyLists.add(list);
+  if (_summaryTimer) return;
+  _summaryTimer = setTimeout(() => {
+    _summaryTimer = null;
+    const lists = [..._dirtyLists];
+    _dirtyLists.clear();
+    lists.forEach(refreshSummary);
+  }, 100);
+}
+
+async function refreshSummary(list) {
+  const token = {};
+  _summaryTokens.set(list, token);
+
+  const tiles = list.querySelectorAll(".rmp-tile");
+  const names = [...new Set([...tiles].map((t) => t.getAttribute("data-rmp-name")))];
+
+  let summary = list.querySelector(":scope > .rmp-summary");
+  // Nothing to compare with fewer than two instructors.
+  if (names.length < 2) {
+    summary?.remove();
+    return;
+  }
+
+  const results = await Promise.all(
+    names.map(async (name) => ({ name, data: await getRating(name).catch(() => null) }))
+  );
+  if (_summaryTokens.get(list) !== token || !list.isConnected) return;
+
+  const score = (data) => (hasRatings(data) ? data.avgRating : -1);
+  results.sort(
+    (a, b) => score(b.data) - score(a.data) || (b.data?.numRatings ?? 0) - (a.data?.numRatings ?? 0)
+  );
+
+  // Rebuilding would close a hover card open on one of the chips, so skip it
+  // when more sections scroll in without changing the result.
+  const key = results.map(({ name, data }) => `${name}:${score(data)}`).join("|");
+  if (summary?.getAttribute("data-rmp-key") === key) return;
+
+  if (!summary) {
+    summary = document.createElement("div");
+    summary.className = "rmp-summary";
+    list.prepend(summary);
+  }
+  summary.setAttribute("data-rmp-key", key);
+  summary.innerHTML = `
+    <div class="rmp-summary-title">Instructors for this course · best rated first</div>
+    <div class="rmp-summary-chips"></div>
+  `;
+  const chips = summary.querySelector(".rmp-summary-chips");
+  for (const { name, data } of results) chips.appendChild(buildChip(name, data));
+}
+
+function buildChip(name, data) {
+  const rated = hasRatings(data);
+  const chip = document.createElement("span");
+  chip.className = "rmp-chip";
+
+  const score = document.createElement("span");
+  score.className = `rmp-chip-score ${rated ? ratingClass(data.avgRating) : "rmp-not-found"}`;
+  score.textContent = rated ? data.avgRating.toFixed(1) : "N/A";
+
+  chip.append(score, name);
+  if (rated) attachHoverCard(chip, data);
+  return chip;
+}
+
+// ── Drawer Badge ─────────────────────────────────────────────────────────────
 
 function attachBadge(el, name) {
-  if (!_contextValid) return;
-
   const badge = document.createElement("span");
   badge.className = "rmp-badge rmp-loading";
   badge.textContent = "RMP…";
   badge.setAttribute("data-rmp-name", name);
   // Added beside the name rather than inside it, so that hovering or clicking
-  // the badge doesn't also trigger the name's tooltip and instructor drawer.
+  // the badge doesn't also trigger anything the site attached to the name.
   el.after(badge);
 
-  try {
-    chrome.runtime.sendMessage(
-      { type: "GET_PROFESSOR_RATING", name },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          const msg = chrome.runtime.lastError.message || "";
-          if (msg.includes("Extension context invalidated") || msg.includes("context invalidated")) {
-            _contextValid = false;
-            if (_observer) _observer.disconnect();
-          }
-          badge.remove();
-          return;
-        }
-        const data = response?.data;
-        renderBadge(badge, data);
-      }
-    );
-  } catch (err) {
-    // Extension was reloaded — context is gone
-    _contextValid = false;
-    if (_observer) _observer.disconnect();
-    badge.remove();
-  }
+  getRating(name).then((data) => renderBadge(badge, data), () => badge.remove());
 }
 
 function renderBadge(badge, data) {
   badge.classList.remove("rmp-loading");
 
-  if (!data || data.numRatings === 0) {
+  if (!hasRatings(data)) {
     badge.className = "rmp-badge rmp-not-found";
     badge.textContent = "RMP: N/A";
     badge.title = "No RateMyProfessors data found";
@@ -137,9 +309,7 @@ function renderBadge(badge, data) {
   const rating = data.avgRating ?? 0;
   badge.className = `rmp-badge ${ratingClass(rating)}`;
   badge.textContent = `★ ${rating.toFixed(1)}`;
-
-  badge.addEventListener("mouseenter", () => showCard(badge, data));
-  badge.addEventListener("mouseleave", scheduleHide);
+  attachHoverCard(badge, data);
 }
 
 function ratingClass(r) {
@@ -152,12 +322,17 @@ function ratingClass(r) {
 // ── Hover Card ───────────────────────────────────────────────────────────────
 
 // Only one card exists at a time, built on hover. A fully scrolled schedule has
-// thousands of badges, which is far too many to pre-build a card for each.
+// thousands of tiles, which is far too many to pre-build a card for each.
 let _activeCard = null;
-let _activeBadge = null;
+let _activeAnchor = null;
 let _hideTimer = null;
 
-function showCard(badge, data) {
+function attachHoverCard(anchor, data) {
+  anchor.addEventListener("mouseenter", () => showCard(anchor, data));
+  anchor.addEventListener("mouseleave", scheduleHide);
+}
+
+function showCard(anchor, data) {
   cancelHide();
   hideCard();
 
@@ -167,14 +342,14 @@ function showCard(badge, data) {
   document.body.appendChild(card);
 
   _activeCard = card;
-  _activeBadge = badge;
-  positionAndShow(card, badge);
+  _activeAnchor = anchor;
+  positionAndShow(card, anchor);
 }
 
 function hideCard() {
   _activeCard?.remove();
   _activeCard = null;
-  _activeBadge = null;
+  _activeAnchor = null;
 }
 
 function cancelHide() {
@@ -245,9 +420,9 @@ function buildHoverCard(data) {
   return card;
 }
 
-function positionAndShow(card, badge) {
+function positionAndShow(card, anchor) {
   card.style.display = "block";
-  const rect = badge.getBoundingClientRect();
+  const rect = anchor.getBoundingClientRect();
 
   // Use viewport coords to match position: fixed
   let top = rect.bottom + 6;

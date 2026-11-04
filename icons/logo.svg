@@ -1,6 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <circle cx="64" cy="64" r="63" fill="#9c1521"/>
-  <circle cx="64" cy="64" r="56" fill="none" stroke="#f2b632" stroke-width="3"/>
-  <path d="M64 21l10.6 21.5 23.7 3.4-17.2 16.7 4.1 23.6L64 75.1 42.8 86.2l4.1-23.6L29.7 45.9l23.7-3.4z" fill="#f2b632" transform="translate(0 -3)"/>
-  <text x="64" y="110" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="25" font-weight="800" letter-spacing="1" fill="#fff">PCC</text>
+  <circle cx="64" cy="64" r="64" fill="#9c1521"/>
+  <circle cx="64" cy="64" r="58" fill="none" stroke="#f2b632" stroke-width="3"/>
+  <!-- Crest -->
+  <path d="M24 72C20 40 42 16 72 18c16 1 28 10 33 22-8-5-18-7-29-6-22 2-37 16-38 38z" fill="#fff"/>
+  <!-- Helmet -->
+  <path d="M40 74c0-22 15-36 35-36 16 0 28 11 29 28l1 12H88l-3 8 3 16c-8 6-18 8-27 6l-1-22-20-12z" fill="#f2b632"/>
+  <!-- Eye slit -->
+  <path d="M72 62c9-5 18-4 28 2l1 6H78c-3-3-5-5-6-8z" fill="#3a0a0f"/>
+  <!-- Brow band -->
+  <path d="M46 62c8-12 19-18 32-17" fill="none" stroke="#9c1521" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- Rating star -->
+  <g transform="translate(35 96)">
+    <circle r="21" fill="#9c1521" stroke="#f2b632" stroke-width="3"/>
+    <path d="M0-15 4.4-5.1 15-3.9 7.1 3.2 9.3 13.6 0 8.2-9.3 13.6-7.1 3.2-15-3.9-4.4-5.1z" fill="#f2b632"/>
+  </g>
 </svg>
